@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Current Song">
+<meta name="theme-color" content="#F2F1F6">
+<title>Current Song</title>
+<style>
+  :root { --paper:#F2F1F6; --surface:#FFFFFF; --ink:#1E1A2B; --soft:#6E6A7C; --line:#E0DEE8;
+    --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+    --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--surface); color:var(--ink); font:16px/1.45 var(--round); -webkit-font-smoothing:antialiased; }
+  main { max-width:480px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 20px 40px; }
+  h1 { font:600 30px/1.1 var(--serif); letter-spacing:-.015em; margin:8px 0 2px; }
+  .sub { color:var(--soft); margin:0 0 18px; }
+  input { width:100%; font:inherit; color:inherit; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--paper); }
+  :focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  ul { list-style:none; margin:14px 0 0; padding:0; }
+  li { display:grid; grid-template-columns:48px 1fr auto; gap:12px; align-items:center; border-bottom:1px solid var(--line); padding:10px 2px; }
+  img { width:48px; height:48px; border-radius:8px; display:block; background:var(--paper); }
+  strong { font:600 17px/1.2 var(--serif); display:block; }
+  small { color:var(--soft); font-size:13px; }
+  button { font:inherit; font-size:13px; font-weight:600; color:inherit; cursor:pointer; border:1px solid var(--line); background:none; border-radius:999px; padding:7px 13px; }
+  #status { color:var(--soft); font-size:14px; margin-top:14px; }
+  footer { color:var(--soft); font-size:12.5px; margin-top:28px; }
+  footer a { color:inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Which song?</h1>
+  <p class="sub">Phase 0 test: song search from the phone.</p>
+  <input id="q" placeholder="Title or artist" autocomplete="off" enterkeyhint="search" aria-label="Search songs">
+  <p id="status" role="status">Type at least two letters.</p>
+  <ul id="results"></ul>
+  <footer>Song details and previews come from <a href="https://www.deezer.com">Deezer</a>. Nothing is stored.</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let audio = null, playing = null, timer = null, seq = 0;
+
+// Deezer's API does not allow direct cross-site requests, so we use its JSONP mode:
+// the response arrives as a script that calls our callback.
+function deezerSearch(query) {
+  return new Promise((resolve, reject) => {
+    const name = 'dz' + (++seq), script = document.createElement('script');
+    const done = () => { delete window[name]; script.remove(); };
+    const timeout = setTimeout(() => { done(); reject(new Error('timed out')); }, 8000);
+    window[name] = data => { clearTimeout(timeout); done(); data.error ? reject(new Error(data.error.message)) : resolve(data.data || []); };
+    script.onerror = () => { clearTimeout(timeout); done(); reject(new Error('request blocked')); };
+    script.src = 'https://api.deezer.com/search?limit=15&output=jsonp&callback=' + name + '&q=' + encodeURIComponent(query);
+    document.head.append(script);
+  });
+}
+
+function el(tag, text) { const e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
+
+function render(tracks) {
+  $('results').replaceChildren(...tracks.map(t => {
+    const li = el('li'), img = el('img'), txt = el('div'), btn = el('button', 'Play');
+    img.src = t.album.cover_medium || ''; img.alt = '';
+    txt.append(el('strong', t.title), el('small', t.artist.name));
+    btn.disabled = !t.preview;
+    if (!t.preview) btn.textContent = 'No preview';
+    btn.onclick = () => {
+      if (playing === btn) { audio.pause(); return; }
+      if (audio) audio.pause();
+      audio = new Audio(t.preview);
+      audio.onpause = audio.onended = () => { btn.textContent = 'Play'; if (playing === btn) playing = null; };
+      audio.play().then(() => { playing = btn; btn.textContent = 'Pause'; })
+                  .catch(() => { btn.textContent = 'Could not play'; });
+    };
+    li.append(img, txt, btn);
+    return li;
+  }));
+}
+
+$('q').addEventListener('input', () => {
+  clearTimeout(timer);
+  const q = $('q').value.trim();
+  if (q.length < 2) { $('status').textContent = 'Type at least two letters.'; $('results').replaceChildren(); return; }
+  $('status').textContent = 'Searching…';
+  timer = setTimeout(async () => {
+    try {
+      const tracks = await deezerSearch(q);
+      if ($('q').value.trim() !== q) return;            // a newer search has started
+      $('status').textContent = tracks.length ? tracks.length + ' songs found.' : 'No songs found. Try another spelling.';
+      render(tracks);
+    } catch (e) {
+      $('status').textContent = 'Search failed (' + e.message + '). Check your connection and try again.';
+    }
+  }, 350);
+});
+</script>
+</body>
+</html>
