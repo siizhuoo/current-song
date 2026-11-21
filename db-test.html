@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Current Song: database test</title>
+<style>
+  :root { --paper:#F2F1F6; --surface:#FFFFFF; --ink:#1E1A2B; --soft:#6E6A7C; --line:#E0DEE8;
+    --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+    --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--surface); color:var(--ink); font:16px/1.45 var(--round); -webkit-font-smoothing:antialiased; }
+  main { max-width:480px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 20px 40px; }
+  h1 { font:600 30px/1.1 var(--serif); letter-spacing:-.015em; margin:8px 0 2px; }
+  .sub { color:var(--soft); margin:0 0 18px; }
+  input { width:100%; font:inherit; color:inherit; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--paper); }
+  button { font:inherit; font-weight:600; cursor:pointer; border-radius:999px; }
+  .wide { width:100%; margin-top:12px; padding:13px; border:0; background:var(--ink); color:#fff; }
+  .wide:disabled { opacity:.5; cursor:default; }
+  .ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+  .small { font-size:13px; padding:6px 12px; background:none; color:var(--ink); border:1px solid var(--line); }
+  :focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  #status { color:var(--soft); font-size:14px; margin:14px 0 0; min-height:1.4em; }
+  ul { list-style:none; margin:18px 0 0; padding:0; }
+  li { display:grid; grid-template-columns:14px 1fr auto; gap:12px; align-items:center; border-bottom:1px solid var(--line); padding:12px 2px; }
+  .dot { width:14px; height:14px; border-radius:50%; }
+  strong { font:500 17px/1.25 var(--serif); display:block; }
+  small { color:var(--soft); font-size:13px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Database test</h1>
+  <p class="sub">Phase 0: sign in, save one entry, read it back.</p>
+
+  <section id="signedOut" hidden>
+    <label for="email" class="sub" style="display:block;margin:0 0 8px">Your email</label>
+    <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
+    <button class="wide" id="send">Send sign-in link</button>
+  </section>
+
+  <section id="signedIn" hidden>
+    <p class="sub" id="who"></p>
+    <button class="wide" id="save">Save a test entry</button>
+    <button class="wide ghost" id="out">Sign out</button>
+    <ul id="list"></ul>
+  </section>
+
+  <p id="status" role="status"></p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Both values are designed to be public. Privacy comes from row level security in the database.
+const SUPABASE_URL = 'https://kghwlzirdufkzmatvgtd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_1NQuTrnjLOirY1fSbVkDJA_7bPKdzu1';
+
+const $ = id => document.getElementById(id);
+const say = t => $('status').textContent = t;
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function showState(session) {
+  $('signedOut').hidden = !!session;
+  $('signedIn').hidden = !session;
+  if (session) { $('who').textContent = 'Signed in as ' + session.user.email; await loadEntries(); }
+}
+
+async function loadEntries() {
+  const { data, error } = await db.from('entries')
+    .select('id, created_at, title, artist, words, color')
+    .order('created_at', { ascending: false });
+  if (error) return say('Could not read entries: ' + error.message);
+  $('list').replaceChildren(...data.map(e => {
+    const li = document.createElement('li'), dot = document.createElement('span'), txt = document.createElement('div'), del = document.createElement('button');
+    dot.className = 'dot'; dot.style.background = e.color;
+    const s = document.createElement('strong'); s.textContent = e.words;
+    const m = document.createElement('small'); m.textContent = `${e.title}, ${e.artist} · ${new Date(e.created_at).toLocaleString()}`;
+    txt.append(s, m);
+    del.className = 'small'; del.textContent = 'Delete';
+    del.onclick = async () => {
+      const { error } = await db.from('entries').delete().eq('id', e.id);
+      if (error) return say('Could not delete: ' + error.message);
+      say('Deleted.'); loadEntries();
+    };
+    li.append(dot, txt, del);
+    return li;
+  }));
+  if (!$('status').textContent || $('status').textContent.startsWith('Signed')) say(data.length + ' entries in your diary.');
+}
+
+$('send').onclick = async () => {
+  const email = $('email').value.trim();
+  if (!email.includes('@')) return say('Enter your email address.');
+  $('send').disabled = true; say('Sending…');
+  const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+  $('send').disabled = false;
+  say(error ? 'Could not send the link: ' + error.message : 'Check your email and tap the link. Open it in Safari on this device.');
+};
+
+$('save').onclick = async () => {
+  $('save').disabled = true; say('Saving…');
+  const { error } = await db.from('entries').insert({
+    artist: 'Jannabi', title: 'Summer',
+    words: 'test entry, ' + new Date().toLocaleTimeString(),
+    energy: 0.6, positivity: 0.4, color: '#74a7fe',
+  });
+  $('save').disabled = false;
+  if (error) return say('Could not save: ' + error.message);
+  say('Saved. Reading it back…'); await loadEntries(); say('Saved and read back.');
+};
+
+$('out').onclick = async () => { await db.auth.signOut(); say('Signed out.'); };
+
+db.auth.onAuthStateChange((_event, session) => showState(session));
+db.auth.getSession().then(({ data }) => showState(data.session));
+</script>
+</body>
+</html>
