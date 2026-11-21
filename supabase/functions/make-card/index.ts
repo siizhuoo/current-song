@@ -5,9 +5,13 @@
 // Deploy: Supabase dashboard -> Edge Functions -> Deploy a new function -> Via Editor,
 // name it "make-card", paste this file, keep "Verify JWT" on, Deploy.
 // Needs the secret GEMINI_API_KEY. Optional secret GEMINI_MODEL (default below).
+// Needs the secret GEMINI_API_KEY. Optional secret GEMINI_MODEL replaces the first model below.
 
 const ALLOWED_ORIGIN = 'https://siizhuoo.github.io';
-const MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest';
+// Tried in order. If one is busy (Google returns 503 or 429), the next one is used.
+const MODELS = [Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest', 'gemini-flash-lite-latest'];
+const BUSY = new Set([429, 500, 503]);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const cors = {
   'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
@@ -67,18 +71,30 @@ Deno.serve(async (req) => {
   }
   const variation = Math.floor(Math.random() * 1e6);
 
-  const gemini = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
-      contents: [{ role: 'user', parts: [{ text: JSON.stringify({ words, energy, positivity, color, variation }) }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.1 },
-    }),
+  const request = JSON.stringify({
+    systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
+    contents: [{ role: 'user', parts: [{ text: JSON.stringify({ words, energy, positivity, color, variation }) }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.1 },
   });
 
-  const data = await gemini.json().catch(() => ({}));
-  if (!gemini.ok) return reply({ error: `Gemini error ${gemini.status}: ${data?.error?.message || 'no details'}` }, 502);
+  // Each model gets two tries, a moment apart, before moving to the next.
+  let data = null, used = null, lastError = 'no response';
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 2 && !used; attempt++) {
+      if (attempt) await wait(1200);
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: request,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { data = body; used = model; break; }
+      lastError = `${model} ${res.status}: ${body?.error?.message || 'no details'}`;
+      if (!BUSY.has(res.status)) break;  // a real error, such as an unknown model: don't retry this one
+    }
+    if (used) break;
+  }
+  if (!used) return reply({ error: `Gemini is unavailable right now. Last error: ${lastError}` }, 503);
 
   let card;
   try { card = JSON.parse(data.candidates[0].content.parts[0].text); }
@@ -96,7 +112,7 @@ Deno.serve(async (req) => {
       lobes: Math.round(clamp(card.lobes, 3, 7, 5)),
       sharpness: clamp(card.sharpness, 0, 0.35, 0.1),
       seed: Math.floor(Math.random() * 1e9),
-      model: MODEL,
+      model: used,
     },
   });
 });
