@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
   workflow_dispatch:   # adds a "Run workflow" button for manual deploys
 
 permissions:
@@ -23,4 +24,5 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase functions deploy make-card --project-ref "$SUPABASE_PROJECT_ID"
+      # --yes answers the "are you sure?" prompt, which a robot can't do; --remote picks the project.
+      - run: supabase functions deploy make-card --remote="$SUPABASE_PROJECT_ID" --yes
