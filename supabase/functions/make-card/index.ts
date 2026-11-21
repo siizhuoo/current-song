@@ -4,12 +4,14 @@
 //
 // Deploy: Supabase dashboard -> Edge Functions -> Deploy a new function -> Via Editor,
 // name it "make-card", paste this file, keep "Verify JWT" on, Deploy.
-// Needs the secret GEMINI_API_KEY. Optional secret GEMINI_MODEL (default below).
 // Needs the secret GEMINI_API_KEY. Optional secret GEMINI_MODEL replaces the first model below.
 
 const ALLOWED_ORIGIN = 'https://siizhuoo.github.io';
-// Tried in order. If one is busy (Google returns 503 or 429), the next one is used.
-const MODELS = [Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest', 'gemini-flash-lite-latest'];
+// Tried in order. If one is busy (Google returns 503 or 429) or slow, the next one is used.
+// Flash-Lite goes first: it is faster and less often overloaded, and six settings is an easy task.
+const MODELS = [Deno.env.get('GEMINI_MODEL') || 'gemini-flash-lite-latest', 'gemini-flash-latest'];
+const CALL_TIMEOUT_MS = 9000;   // give up on a single Gemini call after 9 seconds
+const TOTAL_BUDGET_MS = 25000;  // and on the whole request after 25 seconds
 const BUSY = new Set([429, 500, 503]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -79,14 +81,23 @@ Deno.serve(async (req) => {
 
   // Each model gets two tries, a moment apart, before moving to the next.
   let data = null, used = null, lastError = 'no response';
+  const started = Date.now();
   for (const model of MODELS) {
     for (let attempt = 0; attempt < 2 && !used; attempt++) {
-      if (attempt) await wait(1200);
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: request,
-      });
+      if (Date.now() - started > TOTAL_BUDGET_MS - CALL_TIMEOUT_MS) break;
+      if (attempt) await wait(800);
+      let res;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: request,
+          signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+        });
+      } catch (e) {
+        lastError = `${model}: no answer within ${CALL_TIMEOUT_MS / 1000} s`;
+        continue;  // slow is treated like busy: try again, then the next model
+      }
       const body = await res.json().catch(() => ({}));
       if (res.ok) { data = body; used = model; break; }
       lastError = `${model} ${res.status}: ${body?.error?.message || 'no details'}`;
