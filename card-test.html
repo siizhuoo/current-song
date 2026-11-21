@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Current Song: card test</title>
+<style>
+  :root { --paper:#F2F1F6; --surface:#FFFFFF; --ink:#1E1A2B; --soft:#6E6A7C; --line:#E0DEE8;
+    --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+    --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--surface); color:var(--ink); font:16px/1.45 var(--round); -webkit-font-smoothing:antialiased; }
+  main { max-width:480px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 20px 40px; }
+  h1 { font:600 30px/1.1 var(--serif); letter-spacing:-.015em; margin:8px 0 2px; }
+  .sub { color:var(--soft); margin:0 0 18px; }
+  label.q { display:block; font-weight:600; margin:16px 0 8px; }
+  textarea { width:100%; min-height:88px; resize:none; font:500 18px/1.35 var(--serif); color:inherit;
+             border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--paper); }
+  input[type=range] { width:100%; accent-color:var(--ink); margin:0; }
+  input[type=color] { width:52px; height:40px; border:0; padding:0; background:none; }
+  .ends { display:flex; justify-content:space-between; color:var(--soft); font-size:12.5px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border-radius:999px; }
+  .wide { width:100%; margin-top:14px; padding:13px; border:0; background:var(--ink); color:#fff; }
+  .wide:disabled { opacity:.5; cursor:default; }
+  .ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+  :focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  canvas { width:100%; aspect-ratio:1; border-radius:28px; display:block; margin-top:20px; background:var(--paper); }
+  #status { color:var(--soft); font-size:14px; margin:14px 0 0; min-height:1.4em; }
+  pre { background:var(--paper); border-radius:14px; padding:12px; font-size:12px; overflow-x:auto; white-space:pre-wrap; }
+  a { color:inherit; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Card test</h1>
+  <p class="sub">Phase 0: your words become card settings. The AI never sees a song.</p>
+
+  <p id="needSignIn" hidden>You're signed out. <a href="db-test.html">Sign in on the database test page</a>, then come back.</p>
+
+  <section id="form" hidden>
+    <label class="q" for="words">How does it feel right now?</label>
+    <textarea id="words" placeholder="A place, a moment, a mood. Any language."></textarea>
+    <label class="q" for="energy">Energy</label>
+    <input type="range" id="energy" min="0" max="100" value="60">
+    <div class="ends"><span>calm</span><span>intense</span></div>
+    <label class="q" for="pos">Positivity</label>
+    <input type="range" id="pos" min="0" max="100" value="50">
+    <div class="ends"><span>dark</span><span>bright</span></div>
+    <label class="q" for="color">Its color</label>
+    <input type="color" id="color" value="#74a7fe">
+    <button class="wide" id="gen">Generate card</button>
+    <button class="wide ghost" id="regen" hidden>Regenerate</button>
+    <p id="status" role="status"></p>
+    <canvas id="cv" width="700" height="700" role="img" aria-label="Generated card" hidden></canvas>
+    <details id="raw" hidden><summary class="sub" style="margin-top:14px">Settings the AI chose</summary><pre id="json"></pre></details>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const db = window.supabase.createClient('https://kghwlzirdufkzmatvgtd.supabase.co', 'sb_publishable_1NQuTrnjLOirY1fSbVkDJA_7bPKdzu1');
+const $ = id => document.getElementById(id);
+const say = t => $('status').textContent = t;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let card = null;
+
+function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+function rng(seed) { let a = seed >>> 0; return () => { a += 0x6D2B79F5; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// The same visual language as prototype.html, driven by the AI's settings.
+function draw(cv, c, t) {
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, r = rng(c.seed);
+  if (still) t = c.seed % 7;
+  ctx.shadowBlur = 0; ctx.fillStyle = c.background; ctx.fillRect(0, 0, W, H);
+  c.palette.forEach(col => {
+    const fx = .6 + r() * .9, fy = .6 + r() * .9, ph = r() * 6.3, size = .34 + r() * .2;
+    const x = W * (.5 + .3 * Math.sin(t * c.pace * .22 * fx + ph)), y = H * (.5 + .3 * Math.cos(t * c.pace * .2 * fy + ph * 1.7));
+    const g = ctx.createRadialGradient(x, y, 0, x, y, W * size);
+    g.addColorStop(0, rgba(col, .85)); g.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  });
+  let cx = W / 2, cy = H / 2, scale = 1, spin = .8;
+  if (c.motion === 'pulse') scale = 1 + .07 * Math.sin(t * c.pace * 3);
+  if (c.motion === 'burst') scale = 1 + .2 * Math.exp(-((t * c.pace * .6) % 1) * 4);
+  if (c.motion === 'drift') { scale = 1 + .03 * Math.sin(t * c.pace); spin = .3; cx += W * .06 * Math.sin(t * c.pace * .5); cy += H * .05 * Math.cos(t * c.pace * .4); }
+  const R = W * .23 * scale, n = 96;
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * Math.PI * 2;
+    const rad = R * (1 + c.sharpness * Math.sin(a * c.lobes + t * c.pace * spin + c.seed) + .05 * Math.sin(a * 2 - t * c.pace * .5));
+    ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+  }
+  const fill = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  fill.addColorStop(0, c.palette[0]); fill.addColorStop(1, c.palette[1]);
+  ctx.shadowColor = rgba(c.palette[0], .55); ctx.shadowBlur = W * .09;
+  ctx.fillStyle = fill; ctx.fill(); ctx.shadowBlur = 0;
+}
+
+async function generate() {
+  const words = $('words').value.trim();
+  if (!words) return say('Write how it feels first.');
+  $('gen').disabled = $('regen').disabled = true; say('Generating…');
+  const t0 = performance.now();
+  const { data, error } = await db.functions.invoke('make-card', {
+    body: { words, energy: $('energy').value / 100, positivity: $('pos').value / 100, color: $('color').value },
+  });
+  $('gen').disabled = $('regen').disabled = false;
+  if (error) {
+    let detail = error.message;
+    try { const body = await error.context.json(); if (body.error) detail = body.error; } catch {}
+    return say('Could not generate: ' + detail);
+  }
+  card = data.card;
+  $('cv').hidden = $('raw').hidden = $('regen').hidden = false;
+  $('json').textContent = JSON.stringify(card, null, 2);
+  say(`Made in ${((performance.now() - t0) / 1000).toFixed(1)} s with ${card.model}.`);
+}
+
+$('gen').onclick = generate;
+$('regen').onclick = generate;
+
+(function loop(ms) { if (card) draw($('cv'), card, ms / 1000); if (!still) requestAnimationFrame(loop); else setTimeout(() => loop(0), 500); })(0);
+
+db.auth.getSession().then(({ data }) => { $('form').hidden = !data.session; $('needSignIn').hidden = !!data.session; });
+</script>
+</body>
+</html>
