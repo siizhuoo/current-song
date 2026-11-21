@@ -2,8 +2,8 @@
 // Turns my handwritten words + sliders + chosen color into card settings for the renderer.
 // The AI is blind to the song: only the four fields below are ever sent to it.
 //
-// Deploy: Supabase dashboard -> Edge Functions -> Deploy a new function -> Via Editor,
-// name it "make-card", paste this file, keep "Verify JWT" on, Deploy.
+// Deploy: automatic. Pushing a change to this file on main runs .github/workflows/deploy-functions.yml.
+// (Manual fallback: Supabase dashboard -> Edge Functions -> make-card -> Code, paste, Deploy.)
 // Needs the secret GEMINI_API_KEY. Optional secret GEMINI_MODEL replaces the first model below.
 
 const ALLOWED_ORIGIN = 'https://siizhuoo.github.io';
