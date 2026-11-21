@@ -32,7 +32,9 @@ You receive a person's own words about how a song feels to them right now, two s
 You never see the song. Do not guess it. Do not write any words; return only the settings.
 
 Rules:
-- palette: 4 colors. Keep every hue close to the chosen color (within about 40 degrees on the color wheel) and vary tint, shade and vibrance to express the words. The first color is the strongest.
+- palette: 4 colors. The first color is the strongest.
+  - If the chosen color has a clear hue, keep every hue close to it (within about 40 degrees on the color wheel) and vary tint, shade and vibrance to express the words.
+  - If the chosen color is black, grey or white (little or no hue), keep the palette mostly in that neutral and add at most one subtle accent hue chosen from the words, used sparingly.
 - background: one soft color that lets the palette glow. Brighter when positivity is high, deeper when it is low.
 - motion: "pulse" for steady heartbeats or warmth, "drift" for floating, wistful or quiet moods, "burst" for joy, release or intensity.
 - pace: 0.2 (very slow) to 2.0 (very fast). Follow energy, adjusted by the words.

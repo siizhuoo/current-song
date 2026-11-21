@@ -4,50 +4,321 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Current Song">
-<meta name="theme-color" content="#F2F1F6">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Current Song</title>
 <style>
-  :root { --paper:#F2F1F6; --surface:#FFFFFF; --ink:#1E1A2B; --soft:#6E6A7C; --line:#E0DEE8;
-    --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-    --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif; }
+  :root {
+    --paper:#F2F1F6; --surface:#FFFFFF; --ink:#1E1A2B; --soft:#6E6A7C; --line:#E0DEE8; --wash:#E9E7F0;
+    --serif: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --round: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--surface); color:var(--ink); font:16px/1.45 var(--round); -webkit-font-smoothing:antialiased; }
-  main { max-width:480px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 20px 40px; }
-  h1 { font:600 30px/1.1 var(--serif); letter-spacing:-.015em; margin:8px 0 2px; }
-  .sub { color:var(--soft); margin:0 0 18px; }
-  input { width:100%; font:inherit; color:inherit; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--paper); }
+  html, body { margin:0; }
+  body { background:var(--surface); color:var(--ink); font:16px/1.45 var(--round); -webkit-font-smoothing:antialiased; }
+  button, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; }
   :focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
-  ul { list-style:none; margin:14px 0 0; padding:0; }
-  li { display:grid; grid-template-columns:48px 1fr auto; gap:12px; align-items:center; border-bottom:1px solid var(--line); padding:10px 2px; }
-  img { width:48px; height:48px; border-radius:8px; display:block; background:var(--paper); }
-  strong { font:600 17px/1.2 var(--serif); display:block; }
-  small { color:var(--soft); font-size:13px; }
-  button { font:inherit; font-size:13px; font-weight:600; color:inherit; cursor:pointer; border:1px solid var(--line); background:none; border-radius:999px; padding:7px 13px; }
-  #status { color:var(--soft); font-size:14px; margin-top:14px; }
-  footer { color:var(--soft); font-size:12.5px; margin-top:28px; }
-  footer a { color:inherit; }
+  [hidden] { display:none !important; }
+
+  .screen { max-width:520px; margin:0 auto; padding:max(20px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom)); }
+  h1 { font:600 32px/1.1 var(--serif); letter-spacing:-.015em; margin:8px 0 2px; }
+  .sub { color:var(--soft); margin:0 0 18px; }
+  .back { background:none; border:0; padding:6px 0; color:var(--soft); font-weight:600; margin-bottom:4px; }
+  .topline { display:flex; justify-content:space-between; align-items:baseline; }
+  .link { background:none; border:0; padding:6px 0; color:var(--soft); font-size:14px; font-weight:600; }
+  .status { color:var(--soft); font-size:14px; margin:12px 0 0; min-height:1.4em; }
+
+  .field { width:100%; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:var(--paper); }
+  textarea.field { min-height:96px; resize:none; font:500 18px/1.35 var(--serif); }
+  label.q { display:block; font-weight:600; margin:18px 0 8px; }
+  .ends { display:flex; justify-content:space-between; color:var(--soft); font-size:12.5px; }
+  input[type=range] { width:100%; accent-color:var(--ink); margin:0; }
+  .check { display:flex; align-items:center; gap:10px; margin-top:12px; }
+  .check input { width:18px; height:18px; accent-color:var(--ink); }
+
+  .wide { width:100%; margin-top:14px; padding:14px; border-radius:999px; border:0; background:var(--ink); color:#fff; font-weight:600; font-size:16px; }
+  .wide:disabled { background:var(--wash); color:var(--soft); cursor:default; }
+  .wide.ghost { background:none; color:var(--ink); border:1px solid var(--line); }
+  .wide.ghost:disabled { color:var(--soft); }
+  .log { position:sticky; bottom:max(16px, env(safe-area-inset-bottom)); margin-top:24px; box-shadow:0 6px 24px rgba(30,26,43,.18); }
+
+  /* diary list */
+  .list { list-style:none; margin:0; padding:0; }
+  .list li + li { margin-top:6px; }
+  .entry { width:100%; display:grid; grid-template-columns:72px 1fr; gap:14px; align-items:center; text-align:left;
+           background:none; border:0; padding:8px; border-radius:20px; }
+  .entry:active { background:var(--paper); }
+  .entry canvas { width:72px; height:72px; border-radius:18px; display:block; }
+  .entry .words { font:500 17px/1.25 var(--serif); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .entry .meta { color:var(--soft); font-size:13px; margin-top:3px; }
+  .empty { text-align:center; padding:48px 12px 8px; color:var(--soft); }
+  .empty strong { display:block; font:600 20px/1.2 var(--serif); color:var(--ink); margin-bottom:6px; }
+
+  /* search */
+  .results { list-style:none; margin:14px 0 0; padding:0; }
+  .song { width:100%; display:grid; grid-template-columns:48px 1fr; gap:12px; align-items:center; text-align:left;
+          background:none; border:0; border-bottom:1px solid var(--line); padding:10px 2px; }
+  .cover { width:48px; height:48px; border-radius:8px; object-fit:cover; display:grid; place-items:center; color:#fff;
+           font:600 18px var(--serif); background:var(--wash); }
+  .song strong, .head strong { font:600 17px/1.2 var(--serif); display:block; }
+  .song small, .head small { display:block; color:var(--soft); font-size:13px; }
+  .manual { margin-top:18px; padding-top:4px; }
+
+  /* write */
+  .head { display:grid; grid-template-columns:48px 1fr auto; gap:12px; align-items:center; margin:4px 0 6px; }
+  .play { border:1px solid var(--line); background:none; border-radius:999px; padding:7px 13px; font-size:13px; font-weight:600; white-space:nowrap; }
+  .swatches { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:38px; height:38px; border-radius:50%; border:3px solid var(--surface); box-shadow:0 0 0 1px var(--line); padding:0; }
+  .sw[aria-pressed=true] { box-shadow:0 0 0 2px var(--ink); }
+  input[type=date].field { padding:10px 14px; }
+
+  /* card + entry */
+  .card { width:100%; aspect-ratio:1; border-radius:28px; display:block; background:var(--paper); }
+  .said { font:500 22px/1.25 var(--serif); margin:18px 0 4px; white-space:pre-wrap; }
+  .note { color:var(--soft); font-size:13px; margin:10px 0 0; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .chip { border:1px solid var(--line); border-radius:999px; padding:4px 11px; font-size:12.5px; color:var(--soft); }
+  .over { margin-top:24px; }
+  .over h2 { font-size:15px; margin:0 0 10px; }
+  .strip { display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; }
+  .strip button { flex:none; width:96px; background:none; border:0; padding:0; text-align:left; }
+  .strip canvas { width:96px; height:96px; border-radius:20px; display:block; }
+  .strip span { display:block; font-size:12px; color:var(--soft); margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .danger { margin-top:28px; background:none; border:0; color:var(--soft); font-size:14px; font-weight:600; padding:6px 0; }
+  .danger.arm { color:#B3261E; }
 </style>
 </head>
 <body>
-<main>
+
+<!-- Sign in -->
+<section class="screen" id="signin" hidden>
+  <h1>Current Song</h1>
+  <p class="sub">A private diary of how songs feel to you.</p>
+  <label class="q" for="email">Your email</label>
+  <input class="field" id="email" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com">
+  <label class="q" for="password">Password</label>
+  <input class="field" id="password" type="password" autocomplete="current-password">
+  <button class="wide" id="pwSignIn">Sign in</button>
+  <button class="wide ghost" id="sendLink">No password yet? Email me a sign-in link</button>
+  <p class="status" id="signinStatus" role="status"></p>
+</section>
+
+<!-- Set password -->
+<section class="screen" id="setpw" hidden>
+  <button class="back" data-nav="home">Diary</button>
+  <h1>Set a password</h1>
+  <p class="sub">Use it to sign in from the home-screen app. At least 8 characters.</p>
+  <input type="email" id="pwUser" autocomplete="username" hidden>
+  <label class="q" for="newPw">New password</label>
+  <input class="field" id="newPw" type="password" autocomplete="new-password">
+  <button class="wide" id="savePw">Save password</button>
+  <p class="status" id="setpwStatus" role="status"></p>
+</section>
+
+<!-- Diary -->
+<section class="screen" id="home" hidden>
+  <div class="topline"><h1>Diary</h1><span><button class="link" id="toSetPw">Password</button> &nbsp; <button class="link" id="signout">Sign out</button></span></div>
+  <p class="sub" id="count"></p>
+  <ul class="list" id="list"></ul>
+  <div class="empty" id="empty" hidden><strong>No moments yet</strong>Log the song you're listening to and how it feels.</div>
+  <button class="wide log" data-nav="search">Log a song</button>
+</section>
+
+<!-- Search -->
+<section class="screen" id="search" hidden>
+  <button class="back" data-nav="home">Diary</button>
   <h1>Which song?</h1>
-  <p class="sub">Phase 0 test: song search from the phone.</p>
-  <input id="q" placeholder="Title or artist" autocomplete="off" enterkeyhint="search" aria-label="Search songs">
-  <p id="status" role="status">Type at least two letters.</p>
-  <ul id="results"></ul>
-  <footer>Song details and previews come from <a href="https://www.deezer.com">Deezer</a>. Nothing is stored.</footer>
-</main>
+  <p class="sub">Search by title or artist.</p>
+  <input class="field" id="q" placeholder="Title or artist" autocomplete="off" enterkeyhint="search" aria-label="Search songs">
+  <p class="status" id="searchStatus" role="status"></p>
+  <ul class="results" id="results"></ul>
+  <div class="manual">
+    <button class="link" id="showManual">Not listed? Add it yourself</button>
+    <div id="manualForm" hidden>
+      <label class="q" for="mTitle">Song title</label>
+      <input class="field" id="mTitle" autocomplete="off">
+      <label class="q" for="mArtist">Artist</label>
+      <input class="field" id="mArtist" autocomplete="off">
+      <button class="wide ghost" id="useManual">Use this song</button>
+    </div>
+  </div>
+</section>
 
+<!-- Write -->
+<section class="screen" id="write" hidden>
+  <button class="back" data-nav="search">Change song</button>
+  <div class="head">
+    <div id="wCover"></div>
+    <div><strong id="wTitle"></strong><small id="wArtist"></small></div>
+    <button class="play" id="play" hidden>Play preview</button>
+  </div>
+  <label class="q" for="words">How does it feel right now?</label>
+  <textarea class="field" id="words" placeholder="A place, a moment, a mood. Any language."></textarea>
+  <label class="q" for="energy">Energy</label>
+  <input type="range" id="energy" min="0" max="100" value="50">
+  <div class="ends"><span>calm</span><span>intense</span></div>
+  <label class="q" for="pos">Positivity</label>
+  <input type="range" id="pos" min="0" max="100" value="50">
+  <div class="ends"><span>dark</span><span>bright</span></div>
+  <label class="q" id="colorLabel">Its color</label>
+  <div class="swatches" id="swatches" role="group" aria-labelledby="colorLabel"></div>
+  <label class="q" for="date">Listened on</label>
+  <input class="field" type="date" id="date">
+  <label class="check"><input type="checkbox" id="first"> First listen</label>
+  <label class="check"><input type="checkbox" id="lyrics"> I understand the lyrics</label>
+  <button class="wide" id="gen" disabled>Generate card</button>
+</section>
+
+<!-- Card -->
+<section class="screen" id="cardScreen" hidden>
+  <button class="back" id="editBack">Edit</button>
+  <canvas class="card" id="big" width="700" height="700" role="img" aria-label="Your card"></canvas>
+  <p class="status" id="cardStatus" role="status"></p>
+  <p class="said" id="cWords"></p>
+  <div class="sub" id="cSong" style="margin:0"></div>
+  <p class="note">Made from your words, sliders and color only. Saving freezes the card.</p>
+  <button class="wide" id="save" disabled>Save entry</button>
+  <button class="wide ghost" id="regen" disabled>Regenerate</button>
+</section>
+
+<!-- Entry -->
+<section class="screen" id="entry" hidden>
+  <button class="back" data-nav="home">Diary</button>
+  <canvas class="card" id="eCanvas" width="700" height="700" role="img" aria-label="Saved card"></canvas>
+  <p class="said" id="eWords"></p>
+  <div class="sub" id="eSong" style="margin:0"></div>
+  <div class="chips" id="eChips"></div>
+  <div class="over" id="over"></div>
+  <button class="danger" id="del">Delete entry</button>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ---------- setup ---------- */
+// Both values are designed to be public. Privacy comes from row level security in the database.
+const db = window.supabase.createClient('https://kghwlzirdufkzmatvgtd.supabase.co', 'sb_publishable_1NQuTrnjLOirY1fSbVkDJA_7bPKdzu1');
 const $ = id => document.getElementById(id);
-let audio = null, playing = null, timer = null, seq = 0;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SWATCHES = ['#ff4013', '#ff8647', '#ffaa00', '#fffc41', '#96d35f', '#00c7fc', '#74a7fe', '#0042aa',
+                  '#be38f3', '#61177c', '#e63b7a', '#ff8c82', '#111111', '#8a8794', '#f7f6f2'];
+let entries = [], draft = null, pending = null, current = null, audio = null;
 
-// Deezer's API does not allow direct cross-site requests, so we use its JSONP mode:
-// the response arrives as a script that calls our callback.
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const niceDate = s => new Date(s + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+/* ---------- renderer: one visual language for every card ---------- */
+function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+function rng(seed) { let a = seed >>> 0; return () => { a += 0x6D2B79F5; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function cardOf(e) {  // entries saved without a card (early tests) get a plain one from their color
+  if (e.card && e.card.palette) return e.card;
+  const seed = [...(e.words || 'x')].reduce((a, c) => a * 31 + c.charCodeAt(0) >>> 0, 7);
+  return { palette: [e.color, e.color, e.color, e.color], background: '#F2F1F6', motion: 'pulse', pace: .8, lobes: 5, sharpness: .1, seed };
+}
+function draw(cv, c, t) {
+  const ctx = cv.getContext('2d'), W = cv.width, H = cv.height, r = rng(c.seed);
+  if (still) t = c.seed % 7;
+  ctx.shadowBlur = 0; ctx.fillStyle = c.background; ctx.fillRect(0, 0, W, H);
+  c.palette.forEach(col => {
+    const fx = .6 + r() * .9, fy = .6 + r() * .9, ph = r() * 6.3, size = .34 + r() * .2;
+    const x = W * (.5 + .3 * Math.sin(t * c.pace * .22 * fx + ph)), y = H * (.5 + .3 * Math.cos(t * c.pace * .2 * fy + ph * 1.7));
+    const g = ctx.createRadialGradient(x, y, 0, x, y, W * size);
+    g.addColorStop(0, rgba(col, .85)); g.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  });
+  let cx = W / 2, cy = H / 2, scale = 1, spin = .8;
+  if (c.motion === 'pulse') scale = 1 + .07 * Math.sin(t * c.pace * 3);
+  if (c.motion === 'burst') scale = 1 + .2 * Math.exp(-((t * c.pace * .6) % 1) * 4);
+  if (c.motion === 'drift') { scale = 1 + .03 * Math.sin(t * c.pace); spin = .3; cx += W * .06 * Math.sin(t * c.pace * .5); cy += H * .05 * Math.cos(t * c.pace * .4); }
+  const R = W * .23 * scale, n = 96;
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * Math.PI * 2;
+    const rad = R * (1 + c.sharpness * Math.sin(a * c.lobes + t * c.pace * spin + c.seed) + .05 * Math.sin(a * 2 - t * c.pace * .5));
+    ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+  }
+  const fill = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  fill.addColorStop(0, c.palette[0]); fill.addColorStop(1, c.palette[1]);
+  ctx.shadowColor = rgba(c.palette[0], .55); ctx.shadowBlur = W * .09;
+  ctx.fillStyle = fill; ctx.fill(); ctx.shadowBlur = 0;
+}
+function thumb(card, size) { const c = el('canvas'); c.width = c.height = size; draw(c, card, card.seed % 9); return c; }
+
+/* ---------- navigation ---------- */
+function show(id) {
+  if (audio) audio.pause();
+  document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== id);
+  window.scrollTo(0, 0);
+  if (id === 'home') renderHome();
+  if (id === 'search') setTimeout(() => $('q').focus(), 50);
+}
+document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => show(b.dataset.nav));
+
+/* ---------- sign in ----------
+   The home-screen app keeps its own sign-in, separate from Safari, so it uses email + password.
+   The email link is for the first sign-in in Safari, where you then set a password. */
+$('pwSignIn').onclick = async () => {
+  const email = $('email').value.trim(), password = $('password').value;
+  if (!email.includes('@') || !password) return $('signinStatus').textContent = 'Enter your email and password.';
+  $('pwSignIn').disabled = true; $('signinStatus').textContent = 'Signing in…';
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  $('pwSignIn').disabled = false;
+  if (error) $('signinStatus').textContent = 'Could not sign in: ' + error.message + '. If you have not set a password yet, use the email link in Safari first.';
+};
+$('sendLink').onclick = async () => {
+  const email = $('email').value.trim();
+  if (!email.includes('@')) return $('signinStatus').textContent = 'Enter your email address first.';
+  $('sendLink').disabled = true; $('signinStatus').textContent = 'Sending…';
+  const { error } = await db.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname } });
+  $('sendLink').disabled = false;
+  $('signinStatus').textContent = error ? 'Could not send the link: ' + error.message
+    : 'Link sent. Open it in Safari, then tap Password on the diary page to set one.';
+};
+$('toSetPw').onclick = async () => {
+  const { data } = await db.auth.getUser();
+  $('pwUser').value = data.user ? data.user.email : '';
+  $('newPw').value = ''; $('setpwStatus').textContent = '';
+  show('setpw');
+};
+$('savePw').onclick = async () => {
+  const password = $('newPw').value;
+  if (password.length < 8) return $('setpwStatus').textContent = 'Use at least 8 characters.';
+  $('savePw').disabled = true; $('setpwStatus').textContent = 'Saving…';
+  const { error } = await db.auth.updateUser({ password });
+  $('savePw').disabled = false;
+  $('setpwStatus').textContent = error ? 'Could not save: ' + error.message : 'Password saved. You can now sign in from the home-screen app.';
+};
+$('signout').onclick = () => db.auth.signOut();
+
+/* ---------- diary ---------- */
+async function loadEntries() {
+  const { data, error } = await db.from('entries').select('*')
+    .order('listened_on', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { $('count').textContent = 'Could not load your diary: ' + error.message; return; }
+  entries = data;
+  renderHome();
+}
+function renderHome() {
+  $('count').textContent = entries.length === 1 ? '1 moment' : `${entries.length} moments`;
+  $('empty').hidden = entries.length > 0;
+  $('list').replaceChildren(...entries.map(e => {
+    const li = el('li'), b = el('button', 'entry'), txt = el('div');
+    txt.append(el('div', 'words', e.words), el('div', 'meta', `${e.title}, ${e.artist} · ${niceDate(e.listened_on)}`));
+    b.append(thumb(cardOf(e), 144), txt);
+    b.onclick = () => openEntry(e);
+    li.append(b); return li;
+  }));
+}
+
+/* ---------- search ---------- */
+let searchTimer = null, jsonpSeq = 0;
 function deezerSearch(query) {
   return new Promise((resolve, reject) => {
-    const name = 'dz' + (++seq), script = document.createElement('script');
+    const name = 'dz' + (++jsonpSeq), script = el('script');
     const done = () => { delete window[name]; script.remove(); };
     const timeout = setTimeout(() => { done(); reject(new Error('timed out')); }, 8000);
     window[name] = data => { clearTimeout(timeout); done(); data.error ? reject(new Error(data.error.message)) : resolve(data.data || []); };
@@ -56,44 +327,160 @@ function deezerSearch(query) {
     document.head.append(script);
   });
 }
-
-function el(tag, text) { const e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
-
-function render(tracks) {
-  $('results').replaceChildren(...tracks.map(t => {
-    const li = el('li'), img = el('img'), txt = el('div'), btn = el('button', 'Play');
-    img.src = t.album.cover_medium || ''; img.alt = '';
-    txt.append(el('strong', t.title), el('small', t.artist.name));
-    btn.disabled = !t.preview;
-    if (!t.preview) btn.textContent = 'No preview';
-    btn.onclick = () => {
-      if (playing === btn) { audio.pause(); return; }
-      if (audio) audio.pause();
-      audio = new Audio(t.preview);
-      audio.onpause = audio.onended = () => { btn.textContent = 'Play'; if (playing === btn) playing = null; };
-      audio.play().then(() => { playing = btn; btn.textContent = 'Pause'; })
-                  .catch(() => { btn.textContent = 'Could not play'; });
-    };
-    li.append(img, txt, btn);
-    return li;
-  }));
+function coverEl(song) {
+  if (song.cover_url) { const img = el('img', 'cover'); img.src = song.cover_url; img.alt = ''; return img; }
+  const d = el('div', 'cover', (song.title || '?')[0]);
+  const h = [...song.title].reduce((a, c) => a + c.charCodeAt(0), 0) * 7 % 360;
+  d.style.background = `linear-gradient(135deg, hsl(${h},45%,52%), hsl(${(h + 50) % 360},50%,38%))`;
+  return d;
 }
-
 $('q').addEventListener('input', () => {
-  clearTimeout(timer);
+  clearTimeout(searchTimer);
   const q = $('q').value.trim();
-  if (q.length < 2) { $('status').textContent = 'Type at least two letters.'; $('results').replaceChildren(); return; }
-  $('status').textContent = 'Searching…';
-  timer = setTimeout(async () => {
+  if (q.length < 2) { $('searchStatus').textContent = ''; $('results').replaceChildren(); return; }
+  $('searchStatus').textContent = 'Searching…';
+  searchTimer = setTimeout(async () => {
     try {
       const tracks = await deezerSearch(q);
-      if ($('q').value.trim() !== q) return;            // a newer search has started
-      $('status').textContent = tracks.length ? tracks.length + ' songs found.' : 'No songs found. Try another spelling.';
-      render(tracks);
-    } catch (e) {
-      $('status').textContent = 'Search failed (' + e.message + '). Check your connection and try again.';
-    }
+      if ($('q').value.trim() !== q) return;
+      $('searchStatus').textContent = tracks.length ? '' : 'No songs found. Try another spelling, or add it yourself.';
+      $('results').replaceChildren(...tracks.map(t => {
+        const song = { deezer_id: t.id, title: t.title, artist: t.artist.name, cover_url: t.album.cover_medium || null, preview: t.preview || null };
+        const li = el('li'), b = el('button', 'song'), txt = el('div');
+        txt.append(el('strong', null, song.title), el('small', null, song.artist));
+        b.append(coverEl(song), txt); b.onclick = () => startDraft(song);
+        li.append(b); return li;
+      }));
+    } catch (e) { $('searchStatus').textContent = 'Search failed (' + e.message + '). Check your connection, or add the song yourself.'; }
   }, 350);
+});
+$('showManual').onclick = () => { $('manualForm').hidden = false; $('mTitle').focus(); };
+$('useManual').onclick = () => {
+  const title = $('mTitle').value.trim(), artist = $('mArtist').value.trim();
+  if (!title || !artist) return $('searchStatus').textContent = 'Add both the title and the artist.';
+  startDraft({ deezer_id: null, title, artist, cover_url: null, preview: null });
+};
+
+/* ---------- write ---------- */
+function startDraft(song) {
+  draft = { ...song, words: '', energy: .5, positivity: .5, color: '#74a7fe', listened_on: today(), first_listen: false, understands_lyrics: false };
+  pending = null;
+  $('wCover').replaceChildren(coverEl(song)); $('wTitle').textContent = song.title; $('wArtist').textContent = song.artist;
+  $('words').value = ''; $('energy').value = 50; $('pos').value = 50; $('date').value = draft.listened_on; $('date').max = today();
+  $('first').checked = false; $('lyrics').checked = false; $('gen').disabled = true;
+  $('play').hidden = !song.preview; $('play').textContent = 'Play preview';
+  renderSwatches();
+  show('write');
+}
+function renderSwatches() {
+  $('swatches').replaceChildren(...SWATCHES.map(c => {
+    const b = el('button', 'sw'); b.style.background = c;
+    b.setAttribute('aria-label', 'Color ' + c); b.setAttribute('aria-pressed', c === draft.color);
+    b.onclick = () => { draft.color = c; renderSwatches(); };
+    return b;
+  }));
+}
+$('words').oninput = e => { draft.words = e.target.value; $('gen').disabled = !draft.words.trim(); };
+$('energy').oninput = e => draft.energy = e.target.value / 100;
+$('pos').oninput = e => draft.positivity = e.target.value / 100;
+$('date').onchange = e => draft.listened_on = e.target.value || today();
+$('first').onchange = e => draft.first_listen = e.target.checked;
+$('lyrics').onchange = e => draft.understands_lyrics = e.target.checked;
+$('play').onclick = () => {
+  if (audio && !audio.paused) { audio.pause(); return; }
+  audio = new Audio(draft.preview);
+  audio.onpause = audio.onended = () => $('play').textContent = 'Play preview';
+  audio.play().then(() => $('play').textContent = 'Pause').catch(() => $('play').textContent = 'Could not play');
+};
+
+/* ---------- card ---------- */
+async function generate() {
+  $('save').disabled = $('regen').disabled = true;
+  $('cardStatus').textContent = 'Making your card…';
+  const { data, error } = await db.functions.invoke('make-card', {
+    body: { words: draft.words.trim(), energy: draft.energy, positivity: draft.positivity, color: draft.color },
+    timeout: 30000,
+  });
+  $('regen').disabled = false;
+  if (error) {
+    let detail = /abort|timeout/i.test(error.message) ? 'no answer within 30 seconds' : error.message;
+    try { const body = await error.context.json(); if (body.error) detail = body.error; } catch {}
+    $('cardStatus').textContent = 'Could not make the card: ' + detail + '. Tap Regenerate to try again.';
+    return;
+  }
+  pending = data.card;
+  $('save').disabled = false;
+  $('cardStatus').textContent = '';
+}
+$('gen').onclick = () => {
+  if (audio) audio.pause();
+  pending = null;
+  $('cWords').textContent = draft.words.trim(); $('cSong').textContent = `${draft.title}, ${draft.artist}`;
+  show('cardScreen'); generate();
+};
+$('regen').onclick = generate;
+$('editBack').onclick = () => show('write');
+$('save').onclick = async () => {
+  if (!pending) return;
+  $('save').disabled = $('regen').disabled = true; $('cardStatus').textContent = 'Saving…';
+  const row = {
+    deezer_id: draft.deezer_id, title: draft.title, artist: draft.artist, cover_url: draft.cover_url,
+    words: draft.words.trim(), energy: draft.energy, positivity: draft.positivity, color: draft.color,
+    listened_on: draft.listened_on, first_listen: draft.first_listen, understands_lyrics: draft.understands_lyrics, card: pending,
+  };
+  const { data, error } = await db.from('entries').insert(row).select().single();
+  if (error) { $('save').disabled = $('regen').disabled = false; $('cardStatus').textContent = 'Could not save: ' + error.message; return; }
+  entries.unshift(data);
+  entries.sort((a, b) => b.listened_on.localeCompare(a.listened_on) || b.created_at.localeCompare(a.created_at));
+  draft = null; pending = null;
+  openEntry(data);
+};
+
+/* ---------- entry ---------- */
+const sameSong = (a, b) => a.deezer_id && b.deezer_id ? a.deezer_id === b.deezer_id
+  : a.title.toLowerCase() === b.title.toLowerCase() && a.artist.toLowerCase() === b.artist.toLowerCase();
+function openEntry(e) {
+  current = e;
+  $('eWords').textContent = e.words; $('eSong').textContent = `${e.title}, ${e.artist}`;
+  const chips = [niceDate(e.listened_on), 'energy ' + Math.round(e.energy * 8 + 1), 'positivity ' + Math.round(e.positivity * 8 + 1)];
+  if (e.first_listen) chips.push('first listen');
+  if (e.understands_lyrics) chips.push('understood the lyrics');
+  $('eChips').replaceChildren(...chips.map(t => el('span', 'chip', t)));
+  const others = entries.filter(o => o.id !== e.id && sameSong(o, e));
+  $('over').replaceChildren();
+  if (others.length) {
+    const strip = el('div', 'strip');
+    others.forEach(o => { const b = el('button'); b.append(thumb(cardOf(o), 192), el('span', null, o.words)); b.onclick = () => openEntry(o); strip.append(b); });
+    $('over').append(el('h2', null, 'This song at other moments'), strip);
+  }
+  $('del').textContent = 'Delete entry'; $('del').classList.remove('arm');
+  show('entry');
+}
+$('del').onclick = async () => {
+  if (!$('del').classList.contains('arm')) { $('del').classList.add('arm'); $('del').textContent = 'Tap again to delete for good'; return; }
+  const { error } = await db.from('entries').delete().eq('id', current.id);
+  if (error) { $('del').textContent = 'Could not delete: ' + error.message; return; }
+  entries = entries.filter(o => o.id !== current.id);
+  show('home');
+};
+
+/* ---------- animate only the card on screen ---------- */
+function frame(ms) {
+  const t = ms / 1000;
+  if (!$('cardScreen').hidden && pending) draw($('big'), pending, t);
+  if (!$('entry').hidden && current) draw($('eCanvas'), cardOf(current), t);
+  if (!still) requestAnimationFrame(frame); else setTimeout(() => frame(0), 500);
+}
+requestAnimationFrame(frame);
+
+/* ---------- start ---------- */
+let signedIn = null;
+db.auth.onAuthStateChange((_event, session) => {
+  const now = !!session;
+  if (now === signedIn) return;
+  signedIn = now;
+  if (session) { show('home'); loadEntries(); }
+  else { entries = []; show('signin'); }
 });
 </script>
 </body>
