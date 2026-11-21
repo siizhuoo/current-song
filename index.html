@@ -88,6 +88,10 @@
   .strip button { flex:none; width:96px; background:none; border:0; padding:0; text-align:left; }
   .strip canvas { width:96px; height:96px; border-radius:20px; display:block; }
   .strip span { display:block; font-size:12px; color:var(--soft); margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .banner { display:flex; gap:12px; align-items:center; justify-content:space-between; background:var(--paper);
+            border-radius:16px; padding:12px 14px; margin:0 0 14px; font-size:14px; }
+  .small { flex:none; border:1px solid var(--ink); background:var(--ink); color:#fff; border-radius:999px; padding:7px 13px; font-size:13px; font-weight:600; }
+  .account { display:flex; justify-content:center; gap:24px; margin-top:28px; }
   .danger { margin-top:28px; background:none; border:0; color:var(--soft); font-size:14px; font-weight:600; padding:6px 0; }
   .danger.arm { color:#B3261E; }
 </style>
@@ -110,9 +114,13 @@
 <!-- Set password -->
 <section class="screen" id="setpw" hidden>
   <button class="back" data-nav="home">Diary</button>
-  <h1>Set a password</h1>
+  <h1 id="pwTitle">Set a password</h1>
   <p class="sub">Use it to sign in from the home-screen app. At least 8 characters.</p>
   <input type="email" id="pwUser" autocomplete="username" hidden>
+  <div id="curWrap" hidden>
+    <label class="q" for="curPw">Current password</label>
+    <input class="field" id="curPw" type="password" autocomplete="current-password">
+  </div>
   <label class="q" for="newPw">New password</label>
   <input class="field" id="newPw" type="password" autocomplete="new-password">
   <button class="wide" id="savePw">Save password</button>
@@ -121,11 +129,16 @@
 
 <!-- Diary -->
 <section class="screen" id="home" hidden>
-  <div class="topline"><h1>Diary</h1><span><button class="link" id="toSetPw">Password</button> &nbsp; <button class="link" id="signout">Sign out</button></span></div>
+  <h1>Diary</h1>
   <p class="sub" id="count"></p>
+  <div class="banner" id="pwBanner" hidden>
+    <span>Set a password so you can sign in from the home-screen app.</span>
+    <button class="small" id="bannerSetPw">Set password</button>
+  </div>
   <ul class="list" id="list"></ul>
   <div class="empty" id="empty" hidden><strong>No moments yet</strong>Log the song you're listening to and how it feels.</div>
   <button class="wide log" data-nav="search">Log a song</button>
+  <div class="account"><button class="link" id="toSetPw">Change password</button><button class="link" id="signout">Sign out</button></div>
 </section>
 
 <!-- Search -->
@@ -278,19 +291,36 @@ $('sendLink').onclick = async () => {
   $('signinStatus').textContent = error ? 'Could not send the link: ' + error.message
     : 'Link sent. Open it in Safari, then tap Password on the diary page to set one.';
 };
-$('toSetPw').onclick = async () => {
+let me = null;  // the signed-in user
+const hasPassword = () => !!(me && me.user_metadata && me.user_metadata.has_password);
+async function refreshMe() {
   const { data } = await db.auth.getUser();
-  $('pwUser').value = data.user ? data.user.email : '';
-  $('newPw').value = ''; $('setpwStatus').textContent = '';
+  me = data.user;
+  $('pwBanner').hidden = !me || hasPassword();
+}
+function openSetPw() {
+  const change = hasPassword();
+  $('pwTitle').textContent = change ? 'Change password' : 'Set a password';
+  $('curWrap').hidden = !change;
+  $('pwUser').value = me ? me.email : '';
+  $('curPw').value = ''; $('newPw').value = ''; $('setpwStatus').textContent = '';
   show('setpw');
-};
+}
+$('toSetPw').onclick = openSetPw;
+$('bannerSetPw').onclick = openSetPw;
 $('savePw').onclick = async () => {
   const password = $('newPw').value;
   if (password.length < 8) return $('setpwStatus').textContent = 'Use at least 8 characters.';
   $('savePw').disabled = true; $('setpwStatus').textContent = 'Saving…';
-  const { error } = await db.auth.updateUser({ password });
+  if (hasPassword()) {  // changing: confirm the current password first
+    const { error } = await db.auth.signInWithPassword({ email: me.email, password: $('curPw').value });
+    if (error) { $('savePw').disabled = false; return $('setpwStatus').textContent = 'Your current password is not right.'; }
+  }
+  const { data, error } = await db.auth.updateUser({ password, data: { has_password: true } });
   $('savePw').disabled = false;
-  $('setpwStatus').textContent = error ? 'Could not save: ' + error.message : 'Password saved. You can now sign in from the home-screen app.';
+  if (error) return $('setpwStatus').textContent = 'Could not save: ' + error.message;
+  me = data.user; $('pwBanner').hidden = true;
+  show('home');
 };
 $('signout').onclick = () => db.auth.signOut();
 
@@ -479,8 +509,8 @@ db.auth.onAuthStateChange((_event, session) => {
   const now = !!session;
   if (now === signedIn) return;
   signedIn = now;
-  if (session) { show('home'); loadEntries(); }
-  else { entries = []; show('signin'); }
+  if (session) { show('home'); loadEntries(); refreshMe(); }
+  else { entries = []; me = null; show('signin'); }
 });
 </script>
 </body>
